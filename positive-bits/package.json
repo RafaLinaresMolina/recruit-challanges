@@ -1,0 +1,22 @@
+{
+  "name": "positive-bit",
+  "version": "1.0.0",
+  "description": "Rafa Linares Molina",
+  "main": "positive-bits.js",
+  "scripts": {
+    "test": "jest positive-bits.test.js",
+    "lint": "eslint ."
+  },
+  "author": "Rafa <rafa.linares.molina@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^7.3.1",
+    "eslint-config-standard": "^14.1.1",
+    "eslint-plugin-import": "^2.8.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.1",
+    "jest": "^26.1.0",
+    "standard": "^14.3.4"
+  }
+}

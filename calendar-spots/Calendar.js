@@ -10,6 +10,20 @@ class CalendarNotFound extends Error {
 	}
 }
 
+class InvalidDuration extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'InvalidDuration';
+	}
+}
+
+class InvalidDate extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'InvalidDate';
+	}
+}
+
 class TimeSlot {
 	constructor(start, end) {
 		this.start = start;
@@ -55,15 +69,37 @@ class DaySlots extends TimeSlots { }
 
 class Sessions extends TimeSlots { }
 
-
-class CalendarService {
-
+class TimeCalculationService {
 	static getSlotTimes(date, slot) {
 		const start = moment(`${date} ${slot.start}`).valueOf();
 		const end = moment(`${date} ${slot.end}`).valueOf();
 		return { start, end };
 	}
 
+	static getMomentHour(dateISO, hour) {
+		return moment(dateISO + ' ' + hour);
+	}
+
+	static addMinutes(hour, minutes) {
+		return moment(hour).add(minutes, 'minutes').format('HH:mm');
+	}
+
+	static canEventFitInTimeSlot(eventEndHour, timeSlotEnd) {
+		const eventEndUtc = moment.utc(eventEndHour, 'HH:mm');
+		const timeSlotEndUtc = moment.utc(timeSlotEnd, 'HH:mm');
+
+		const eventEndTimestamp = eventEndUtc.valueOf();
+		const timeSlotEndTimestamp = timeSlotEndUtc.valueOf();
+
+		if (eventEndTimestamp > timeSlotEndTimestamp) {
+			return null;
+		} else {
+			return true;
+		}
+	}
+}
+
+class OverlapCheckService {
 	static isOverlapping(sessionStart, sessionEnd, start, end) {
 		return sessionStart > start && sessionEnd < end;
 	}
@@ -79,31 +115,10 @@ class CalendarService {
 	static isSessionAtSameTime(sessionStart, sessionEnd, start, end) {
 		return sessionStart === start && sessionEnd === end;
 	}
-
-	static getMomentHour(dateISO, hour) {
-		return moment(dateISO + ' ' + hour);
-	}
-	static addMinutes(hour, minutes) {
-		return moment(hour).add(minutes, constants.MINUTES).format(constants.MINUTES_FORMAT);
-	}
-
-	static canEventFitInTimeSlot(eventEndHour, timeSlotEnd) {
-		const eventEndUtc = moment.utc(eventEndHour, constants.MINUTES_FORMAT);
-		const timeSlotEndUtc = moment.utc(timeSlotEnd, constants.MINUTES_FORMAT);
-
-		const eventEndTimestamp = eventEndUtc.valueOf();
-		const timeSlotEndTimestamp = timeSlotEndUtc.valueOf();
-
-		if (eventEndTimestamp > timeSlotEndTimestamp) {
-			return null;
-		} else {
-			return true;
-		}
-	}
 }
 
 class Calendar {
-	
+
 	constructor(durationBefore, durationAfter, slots, sessions) {
 		this.durationBefore = durationBefore;
 		this.durationAfter = durationAfter;
@@ -113,7 +128,7 @@ class Calendar {
 
 	static fromFile(calendarId) {
 		try {
-			const calendar = JSON.parse(fs.readFileSync('./calendars/calendar.' + calendarId + '.json'));
+			const calendar = JSON.parse(fs.readFileSync(constants.CALENDAR_PATH + calendarId + constants.CALENDAR_FILE_EXTENSION));
 			return new Calendar(calendar.durationBefore, calendar.durationAfter, calendar.slots, calendar.sessions);
 		} catch (e) {
 			console.log(e)
@@ -126,21 +141,21 @@ class Calendar {
 	}
 
 	getAvailableTimeSlots(daySlot, sessionSlot, dateISO) {
-		const { start: sessionStart, end: sessionEnd } = CalendarService.getSlotTimes(dateISO, sessionSlot);
-		const { start, end } = CalendarService.getSlotTimes(dateISO, daySlot);
-		if (CalendarService.isSessionAtSameTime(sessionStart, sessionEnd, start, end)) {
+		const { start: sessionStart, end: sessionEnd } = TimeCalculationService.getSlotTimes(dateISO, sessionSlot);
+		const { start, end } = TimeCalculationService.getSlotTimes(dateISO, daySlot);
+		if (OverlapCheckService.isSessionAtSameTime(sessionStart, sessionEnd, start, end)) {
 			return [];
 		}
-		if (CalendarService.isOverlapping(sessionStart, sessionEnd, start, end)) {
+		if (OverlapCheckService.isOverlapping(sessionStart, sessionEnd, start, end)) {
 			return [
 				{ start: daySlot.start, end: sessionSlot.start },
 				{ start: sessionSlot.end, end: daySlot.end },
 			];
 		}
-		if (CalendarService.isSessionAtStart(sessionStart, sessionEnd, start, end)) {
+		if (OverlapCheckService.isSessionAtStart(sessionStart, sessionEnd, start, end)) {
 			return [{ start: daySlot.start, end: sessionSlot.start }];
 		}
-		if (CalendarService.isSessionAtEnd(sessionStart, sessionEnd, start, end)) {
+		if (OverlapCheckService.isSessionAtEnd(sessionStart, sessionEnd, start, end)) {
 			return [{ start: sessionSlot.end, end: daySlot.end }];
 		}
 
@@ -176,13 +191,13 @@ class Calendar {
 
 	static getOneMiniSlot(startSlot, endSlot, dateISO, durationBefore, duration, durationAfter) {
 		const fullDuration = durationBefore + duration + durationAfter;
-		const startHourFirst = CalendarService.getMomentHour(dateISO, startSlot);
+		const startHourFirst = TimeCalculationService.getMomentHour(dateISO, startSlot);
 		const startHour = startHourFirst.format(constants.MINUTES_FORMAT);
-		const endHour = CalendarService.addMinutes(startHourFirst, fullDuration);
-		const clientStartHour = CalendarService.addMinutes(startHourFirst, durationBefore);
-		const clientEndHour = CalendarService.addMinutes(startHourFirst, duration);
+		const endHour = TimeCalculationService.addMinutes(startHourFirst, fullDuration);
+		const clientStartHour = TimeCalculationService.addMinutes(startHourFirst, durationBefore);
+		const clientEndHour = TimeCalculationService.addMinutes(startHourFirst, duration);
 
-		if (!CalendarService.canEventFitInTimeSlot(endHour, endSlot)) {
+		if (!TimeCalculationService.canEventFitInTimeSlot(endHour, endSlot)) {
 			return null;
 		}
 		const objSlot = {
@@ -198,31 +213,52 @@ class Calendar {
 		return objSlot;
 	}
 
-	getAvailableSlots(date, duration) {
-		const dateISO = moment(date, constants.DATE_FORMAT).format(constants.DATE_ISO_FORMAT)
-		const durationBefore = this.durationBefore;
-		const durationAfter = this.durationAfter;
-		const daySlots = this.slots.getTimeSlotByDate(date)
-		const daySessions = this.sessions.getTimeSlotByDate(date)
-
-		const freeSlots = this.getFreeSlotsByDate(dateISO, daySessions, daySlots)
-
-		let arrSlot = [];
-		freeSlots.forEach(function (slot) {
-			let start = slot.start;
-			let resultSlot;
-			do {
-				resultSlot = Calendar.getOneMiniSlot(start, slot.end, dateISO, durationBefore, duration, durationAfter);
-				if (resultSlot) {
-					arrSlot.push(resultSlot);
-					start = moment.utc(resultSlot.endHour).format(constants.MINUTES_FORMAT)
-				}
-			} while (resultSlot);
-
-			return arrSlot;
-		});
-		return arrSlot;
+	static checkDate(date) {
+		if (!date || !moment(date, constants.DATE_FORMAT).isValid()) {
+			throw new InvalidDate('Invalid date format');
+		}
+		
 	}
+
+	static checkDuration(duration) {
+		if (!duration || typeof duration !== 'number' || duration < 0) {
+			throw new InvalidDuration('Invalid duration');
+		}
+	}
+
+
+	getAvailableSlots(date, duration) {
+		try {
+			Calendar.checkDate(date);
+			Calendar.checkDuration(duration);
+
+			const dateISO = moment(date, constants.DATE_FORMAT).format(constants.DATE_ISO_FORMAT)
+			const durationBefore = this.durationBefore;
+			const durationAfter = this.durationAfter;
+			const daySlots = this.slots.getTimeSlotByDate(date);
+			const daySessions = this.sessions.getTimeSlotByDate(date);
+
+			const freeSpots = this.getFreeSlotsByDate(dateISO, daySessions, daySlots);
+
+			const availableSlots = [];
+			freeSpots.forEach(slot => {
+				let start = slot.start;
+				let resultSlot;
+				do {
+					resultSlot = Calendar.getOneMiniSlot(start, slot.end, dateISO, durationBefore, duration, durationAfter);
+					if (resultSlot) {
+						availableSlots.push(resultSlot);
+						start = moment.utc(resultSlot.endHour).format(constants.MINUTES_FORMAT)
+					}
+				} while (resultSlot);
+			});
+
+			return availableSlots;
+		} catch (err) {
+			throw err;
+		}
+	}
+
 }
 
 module.exports = Calendar

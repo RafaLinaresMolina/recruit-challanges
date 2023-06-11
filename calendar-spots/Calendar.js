@@ -1,5 +1,6 @@
 const moment = require('moment')
 const fs = require('fs');
+const constants = require('./constants');
 
 
 class CalendarNotFound extends Error {
@@ -34,8 +35,8 @@ class TimeSlots {
 	}
 
 	getTimeSlotByDate(date) {
-		if (!moment(date, 'DD-MM-YYYY', true).isValid()) {
-			throw new Error('Invalid date format. Expected format: DD-MM-YYYY');
+		if (!moment(date, constants.DATE_FORMAT, true).isValid()) {
+			throw new Error(constants.ERROR_MSG_INVALID_DATE_FORMAT);
 		}
 		return this._slots[date] || [];
 	}
@@ -50,15 +51,63 @@ class TimeSlots {
 
 }
 
-class Slots extends TimeSlots { }
+class DaySlots extends TimeSlots { }
 
 class Sessions extends TimeSlots { }
 
+
+class CalendarService {
+
+	static getSlotTimes(date, slot) {
+		const start = moment(`${date} ${slot.start}`).valueOf();
+		const end = moment(`${date} ${slot.end}`).valueOf();
+		return { start, end };
+	}
+
+	static isOverlapping(sessionStart, sessionEnd, start, end) {
+		return sessionStart > start && sessionEnd < end;
+	}
+
+	static isSessionAtStart(sessionStart, sessionEnd, start, end) {
+		return sessionStart === start && sessionEnd < end;
+	}
+
+	static isSessionAtEnd(sessionStart, sessionEnd, start, end) {
+		return sessionStart > start && sessionEnd === end;
+	}
+
+	static isSessionAtSameTime(sessionStart, sessionEnd, start, end) {
+		return sessionStart === start && sessionEnd === end;
+	}
+
+	static getMomentHour(dateISO, hour) {
+		return moment(dateISO + ' ' + hour);
+	}
+	static addMinutes(hour, minutes) {
+		return moment(hour).add(minutes, constants.MINUTES).format(constants.MINUTES_FORMAT);
+	}
+
+	static canEventFitInTimeSlot(eventEndHour, timeSlotEnd) {
+		const eventEndUtc = moment.utc(eventEndHour, constants.MINUTES_FORMAT);
+		const timeSlotEndUtc = moment.utc(timeSlotEnd, constants.MINUTES_FORMAT);
+
+		const eventEndTimestamp = eventEndUtc.valueOf();
+		const timeSlotEndTimestamp = timeSlotEndUtc.valueOf();
+
+		if (eventEndTimestamp > timeSlotEndTimestamp) {
+			return null;
+		} else {
+			return true;
+		}
+	}
+}
+
 class Calendar {
+	
 	constructor(durationBefore, durationAfter, slots, sessions) {
 		this.durationBefore = durationBefore;
 		this.durationAfter = durationAfter;
-		this.slots = new Slots(slots);
+		this.slots = new DaySlots(slots);
 		this.sessions = new Sessions(sessions);
 	}
 
@@ -72,147 +121,101 @@ class Calendar {
 		}
 	}
 
-	getSlotTimes(date, slot) {
-		const start = moment(date + ' ' + slot.start).valueOf();
-		const end = moment(date + ' ' + slot.end).valueOf();
-		return { start, end };
+	getDaySessions(date) {
+		return this.sessions.getTimeSlotByDate(date);
 	}
 
-
-	isSameSlot(sessionStart, sessionEnd, start, end) {
-		return sessionStart === start && sessionEnd === end;
-	}
-
-	isFullyContained(sessionStart, sessionEnd, start, end) {
-		return sessionStart <= start && sessionEnd >= end;
-	}
-
-	isStartContained(sessionStart, sessionEnd, start, end) {
-		return sessionStart <= start && sessionEnd < end;
-	}
-
-	isEndContained(sessionStart, sessionEnd, start, end) {
-		return sessionStart > start && sessionEnd >= end;
-	}
-
-	getRealSpots(daySlot, sessionSlot, dateISO) {
-		const { start: sessionStart, end: sessionEnd } = this.getSlotTimes(dateISO, sessionSlot);
-		const { start, end } = this.getSlotTimes(dateISO, daySlot);
-		if (this.isSameSlot(sessionStart, sessionEnd, start, end)) {
+	getAvailableTimeSlots(daySlot, sessionSlot, dateISO) {
+		const { start: sessionStart, end: sessionEnd } = CalendarService.getSlotTimes(dateISO, sessionSlot);
+		const { start, end } = CalendarService.getSlotTimes(dateISO, daySlot);
+		if (CalendarService.isSessionAtSameTime(sessionStart, sessionEnd, start, end)) {
 			return [];
 		}
-		if (this.isFullyContained(sessionStart, sessionEnd, start, end)) {
+		if (CalendarService.isOverlapping(sessionStart, sessionEnd, start, end)) {
 			return [
 				{ start: daySlot.start, end: sessionSlot.start },
 				{ start: sessionSlot.end, end: daySlot.end },
 			];
 		}
-		if (this.isStartContained(sessionStart, sessionEnd, start, end)) {
+		if (CalendarService.isSessionAtStart(sessionStart, sessionEnd, start, end)) {
 			return [{ start: daySlot.start, end: sessionSlot.start }];
 		}
-		if (this.isEndContained(sessionStart, sessionEnd, start, end)) {
+		if (CalendarService.isSessionAtEnd(sessionStart, sessionEnd, start, end)) {
 			return [{ start: sessionSlot.end, end: daySlot.end }];
 		}
+
 		return [daySlot];
 	}
 
-	getDaySessions(date) {
-		return this.sessions.getTimeSlotByDate(date);
-	}
+	getFreeSlotsByDate(dateISO, daySessions, daySlots) {
+		const freeSlots = [];
 
-	getAvailableSpots(date, duration) {
-		const dateISO = moment(date, 'DD-MM-YYYY').format('YYYY-MM-DD')
-		let durationBefore = this.durationBefore;
-		let durationAfter = this.durationAfter;
-		let daySlots = this.slots.getTimeSlotByDate(date)
-		let daySessions = this.sessions.getTimeSlotByDate(date)
-
-		const freeSpots = []
+		if (!daySessions) {
+			return daySlots;
+		}
 
 		daySlots.forEach(daySlot => {
-			if (!daySessions)
-				freeSpots.push(daySlot)
-
-			let noConflicts = true
-			daySessions.forEach(sessionSlot => {
-
-				let { start: sessionStart, end: sessionEnd } = this.getSlotTimes(dateISO, sessionSlot);
-				let { start, end } = this.getSlotTimes(dateISO, daySlot);
-
-
-				if (sessionStart > start && sessionEnd < end) {
-					freeSpots.push({ start: daySlot.start, end: sessionSlot.start })
-					freeSpots.push({ start: sessionSlot.end, end: daySlot.end })
-					noConflicts = false
-				} else if (sessionStart === start && sessionEnd < end) {
-					freeSpots.push({ start: sessionSlot.end, end: daySlot.end })
-					noConflicts = false
-				} else if (sessionStart > start && sessionEnd === end) {
-					freeSpots.push({ start: daySlot.start, end: sessionSlot.start })
-					noConflicts = false
-				} else if (sessionStart === start && sessionEnd === end) {
-					noConflicts = false
-				}
-			})
-			if (noConflicts) {
-				freeSpots.push(daySlot)
+			let availableSlots = this.getAvailableTimeSlots(daySlot, daySessions[0], dateISO);
+			for (let i = 1; i < daySessions.length; i++) {
+				const sessionSlot = daySessions[i];
+				availableSlots = this.removeConflictingTimeSlots(availableSlots, sessionSlot, dateISO);
 			}
+			freeSlots.push(...availableSlots);
+		});
 
-		})
+		return freeSlots;
+	}
 
-		console.log('freeSpots', freeSpots)
+	removeConflictingTimeSlots(availableSlots, sessionSlot, dateISO) {
+		const filteredSpots = availableSlots.filter(availableSlot => {
+			const realSpots = this.getAvailableTimeSlots(availableSlot, sessionSlot, dateISO);
+			return realSpots.length !== 0;
+		});
+		return filteredSpots;
+	}
+
+	static getOneMiniSlot(startSlot, endSlot, dateISO, durationBefore, duration, durationAfter) {
+		const fullDuration = durationBefore + duration + durationAfter;
+		const startHourFirst = CalendarService.getMomentHour(dateISO, startSlot);
+		const startHour = startHourFirst.format(constants.MINUTES_FORMAT);
+		const endHour = CalendarService.addMinutes(startHourFirst, fullDuration);
+		const clientStartHour = CalendarService.addMinutes(startHourFirst, durationBefore);
+		const clientEndHour = CalendarService.addMinutes(startHourFirst, duration);
+
+		if (!CalendarService.canEventFitInTimeSlot(endHour, endSlot)) {
+			return null;
+		}
+		const objSlot = {
+			startHour: moment.utc(dateISO + ' ' + startHour)
+				.toDate(),
+			endHour: moment.utc(dateISO + ' ' + endHour)
+				.toDate(),
+			clientStartHour: moment.utc(dateISO + ' ' + clientStartHour)
+				.toDate(),
+			clientEndHour: moment.utc(dateISO + ' ' + clientEndHour)
+				.toDate(),
+		};
+		return objSlot;
+	}
+
+	getAvailableSlots(date, duration) {
+		const dateISO = moment(date, constants.DATE_FORMAT).format(constants.DATE_ISO_FORMAT)
+		const durationBefore = this.durationBefore;
+		const durationAfter = this.durationAfter;
+		const daySlots = this.slots.getTimeSlotByDate(date)
+		const daySessions = this.sessions.getTimeSlotByDate(date)
+
+		const freeSlots = this.getFreeSlotsByDate(dateISO, daySessions, daySlots)
 
 		let arrSlot = [];
-		freeSpots.forEach(function (slot) {
-			let init = 0;
-			let startHour;
-			let endHour;
-			let clientStartHour;
-			let clientEndHour;
-
-			function getMomentHour(hour) {
-				let finalHourForAdd = moment(dateISO + ' ' + hour);
-				return finalHourForAdd;
-			}
-			function addMinutes(hour, minutes) {
-				let result = moment(hour).add(minutes, 'minutes').format('HH:mm');
-				return result;
-			}
-			function removeMinutes(hour, minutes) {
-				let result = moment(hour).subtract(minutes, 'minutes').format('HH:mm');
-				return result;
-			}
-			function getOneMiniSlot(startSlot, endSlot) {
-				let startHourFirst = getMomentHour(startSlot);
-				startHour = startHourFirst.format('HH:mm');;
-				endHour = addMinutes(startHourFirst, durationBefore + duration + durationAfter);
-				clientStartHour = addMinutes(startHourFirst, durationBefore);
-				clientEndHour = addMinutes(startHourFirst, duration);
-
-				if (moment.utc(endHour, 'HH:mm').valueOf() > moment.utc(endSlot, 'HH:mm').valueOf()) {
-					return null;
-				}
-				const objSlot = {
-					startHour: moment.utc(dateISO + ' ' + startHour)
-						.toDate(),
-					endHour: moment.utc(dateISO + ' ' + endHour)
-						.toDate(),
-					clientStartHour: moment.utc(dateISO + ' ' + clientStartHour)
-						.toDate(),
-					clientEndHour: moment.utc(dateISO + ' ' + clientEndHour)
-						.toDate(),
-				};
-				init += 1;
-				return objSlot;
-			}
-
+		freeSlots.forEach(function (slot) {
 			let start = slot.start;
 			let resultSlot;
 			do {
-				resultSlot = getOneMiniSlot(start, slot.end);
+				resultSlot = Calendar.getOneMiniSlot(start, slot.end, dateISO, durationBefore, duration, durationAfter);
 				if (resultSlot) {
 					arrSlot.push(resultSlot);
-					start = moment.utc(resultSlot.endHour).format('HH:mm')
+					start = moment.utc(resultSlot.endHour).format(constants.MINUTES_FORMAT)
 				}
 			} while (resultSlot);
 

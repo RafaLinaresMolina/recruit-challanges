@@ -1,0 +1,76 @@
+$container-width: 80%;
+$cell-padding: 10px;
+$border-color: #ddd;
+$background-color-even: #f2f2f2;
+$background-color-header: #4CAF50;
+$background-color-selected: #d4edda;
+$font-color-header: white;
+$button-padding: 10px 20px;
+$button-background-color: #007BFF;
+$button-font-color: white;
+$button-border-radius: 5px;
+$button-font-size: 16px;
+$button-hover-background-color: #0056b3;
+$button-active-background-color: #003680;
+$button-disabled-background-color: #ccc;
+
+@mixin transition($property, $duration) {
+  transition: $property $duration;
+}
+
+.container {
+  margin: 0 auto;
+  width: $container-width;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: $cell-padding;
+    border: 1px solid $border-color;
+  }
+
+  tr {
+    &:nth-child(even) {
+      background-color: $background-color-even;
+    }
+
+    &.selected {
+      background-color: $background-color-selected;
+    }
+  }
+
+  th {
+    background-color: $background-color-header;
+    color: $font-color-header;
+  }
+}
+
+button {
+  padding: $button-padding;
+  margin-top: 20px;
+  background-color: $button-background-color;
+  color: $button-font-color;
+  border: none;
+  border-radius: $button-border-radius;
+  cursor: pointer;
+  font-size: $button-font-size;
+  
+  @include transition(background-color, 0.2s);
+
+  &:hover {
+    background-color: $button-hover-background-color;
+  }
+
+  &:active {
+    background-color: $button-active-background-color;
+  }
+
+  &:disabled {
+    background-color: $button-disabled-background-color;
+    cursor: not-allowed;
+  }
+}

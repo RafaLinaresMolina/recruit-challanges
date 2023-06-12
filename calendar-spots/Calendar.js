@@ -91,11 +91,10 @@ class TimeCalculationService {
 		const eventEndTimestamp = eventEndUtc.valueOf();
 		const timeSlotEndTimestamp = timeSlotEndUtc.valueOf();
 
-		if (eventEndTimestamp > timeSlotEndTimestamp) {
+		if (eventEndTimestamp > timeSlotEndTimestamp)
 			return null;
-		} else {
-			return true;
-		}
+
+		return true;
 	}
 }
 
@@ -217,7 +216,7 @@ class Calendar {
 		if (!date || !moment(date, constants.DATE_FORMAT).isValid()) {
 			throw new InvalidDate('Invalid date format');
 		}
-		
+
 	}
 
 	static checkDuration(duration) {

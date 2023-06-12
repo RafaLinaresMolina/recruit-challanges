@@ -1,12 +1,65 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, ChangeEvent } from 'react';
 import { User } from '../interfaces/User';
 import { UserService } from '../services/UserService';
 import styles from './UserTable.module.scss';
 
+
+interface SearchInputProps {
+    field: keyof User;
+    handleSearch: (e: ChangeEvent<HTMLInputElement>, field: keyof User) => void;
+}
+
+enum SortOrder {
+    ASC = "asc",
+    DESC = "desc"
+}
+
+const SearchInput: React.FC<SearchInputProps> = ({ field, handleSearch }) => (
+    <div>
+        <input type="text" placeholder="Search" onChange={e => handleSearch(e, field)} />
+    </div>
+);
+
+interface UserHeaderProps {
+    field: keyof User;
+    sort: { field: keyof User | '', order: SortOrder.ASC | SortOrder.DESC };
+    handleSort: (field: keyof User) => void;
+    handleSearch: (e: ChangeEvent<HTMLInputElement>, field: keyof User) => void;
+}
+
+const UserHeader: React.FC<UserHeaderProps> = ({ field, sort, handleSort, handleSearch }) => (
+    <th>
+        <div>
+            <div onClick={() => handleSort(field)}>
+                {field.charAt(0).toUpperCase() + field.slice(1)}
+                {sort.field === field && (sort.order === SortOrder.ASC ? ' ▲' : ' ▼')}
+            </div>
+            <SearchInput field={field} handleSearch={handleSearch} />
+        </div>
+    </th>
+);
+
+interface UserRowProps {
+    user: User;
+    handleSelect: (user: User) => void;
+    selected: boolean;
+}
+
+const UserRow: React.FC<UserRowProps> = ({ user, handleSelect, selected }) => (
+    <tr className={selected ? styles.selected : ''}>
+        <td>
+            <input type="checkbox" onChange={() => handleSelect(user)} checked={selected} />
+        </td>
+        <td>{user.name.first} {user.name.last}</td>
+        <td>{user.gender}</td>
+        <td>{user.email}</td>
+    </tr>
+);
+
 const UserTable = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [searchTerms, setSearchTerms] = useState<{ name: string, gender: string, email: string }>({ name: '', gender: '', email: '' });
-    const [sort, setSort] = useState<{ field: keyof User | '', order: 'asc' | 'desc' }>({ field: '', order: 'asc' });
+    const [sort, setSort] = useState<{ field: keyof User | '', order: SortOrder.ASC | SortOrder.DESC }>({ field: '', order: SortOrder.ASC });
     const [selectedRows, setSelectedRows] = useState<User[]>([]);
     const [selectAll, setSelectAll] = useState(false);
 
@@ -22,7 +75,7 @@ const UserTable = () => {
 
     const handleSort = (field: keyof User) => {
         const isCurrentField = sort.field === field;
-        const order = isCurrentField && sort.order === 'asc' ? 'desc' : 'asc';
+        const order = isCurrentField && sort.order === SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
         setSort({ field, order });
     };
 
@@ -43,34 +96,47 @@ const UserTable = () => {
         setSelectAll(!selectAll);
     };
 
-    const filteredAndSortedUsers = users
-        .filter(user => `${user.name.first} ${user.name.last}`.toLowerCase().includes(searchTerms.name.toLowerCase()))
-        .filter(user => user.gender.toLowerCase().includes(searchTerms.gender.toLowerCase()))
-        .filter(user => user.email.toLowerCase().includes(searchTerms.email.toLowerCase()))
-        .sort((a, b) => {
-            if (sort.field) {
-                if (sort.field === 'name') {
-                    return sort.order === 'asc'
-                        ? a.name.first.localeCompare(b.name.first)
-                        : b.name.first.localeCompare(a.name.first);
-                } else {
-                    return sort.order === 'asc'
-                        ? String(a[sort.field]).localeCompare(String(b[sort.field]))
-                        : String(b[sort.field]).localeCompare(String(a[sort.field]));
-                }
-            } else {
-                return 0;
-            }
-        });
+    const filterAndSortUsers = (user: User) => {
+        const fullName = `${user.name.first} ${user.name.last}`.toLowerCase();
+        return (
+            fullName.includes(searchTerms.name.toLowerCase()) &&
+            (searchTerms.gender === '' || user.gender.toLowerCase().startsWith(searchTerms.gender.toLowerCase())) &&
+            user.email.toLowerCase().includes(searchTerms.email.toLowerCase())
+        );
+    };
+
+    const getSortValue = (user: User) => {
+        if (sort.field === 'name') {
+            return user.name.first;
+        } else if (sort.field) {
+            return String(user[sort.field]);
+        }
+        return '';
+    };
+
+    const sortFunction = (userA: User, userB: User) => {
+        const a = getSortValue(userA);
+        const b = getSortValue(userB);
+        return sort.order === SortOrder.ASC ? a.localeCompare(b) : b.localeCompare(a);
+    };
+
+    let filteredAndSortedUsers = users.filter(filterAndSortUsers);
+
+    if (sort.field) {
+        filteredAndSortedUsers = filteredAndSortedUsers.sort(sortFunction);
+    }
 
     const exportToCSV = () => {
         const toExport = selectedRows.length ? selectedRows : users;
-        const csv = toExport.map(row => `${row.name.first} ${row.name.last},${row.gender},${row.email}`).join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const header = 'Name,Gender,Email\n';
+        const csv = toExport.map(user => `${user.name.first} ${user.name.last},${user.gender},${user.email}`).join('\n');
+        const csvWithHeader = header + csv;
+        const blob = new Blob([csvWithHeader], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', 'export.csv');
+        const timestamp = Date.now();
+        link.setAttribute('download', `users_${timestamp}.csv`);
         link.click();
     };
 
@@ -84,41 +150,18 @@ const UserTable = () => {
                             <th>
                                 <input type="checkbox" onChange={handleSelectAll} checked={selectAll} />
                             </th>
-                            <th>
-                                <div>
-                                    <div onClick={() => handleSort('name')}>Name {sort.field === 'name' && (sort.order === 'asc' ? ' ▲' : ' ▼')}</div>
-                                    <div><input type="text" placeholder="Search" onChange={e => handleSearch(e, 'name')} /></div>
-                                </div>
-                            </th>
-                            <th>
-                                <div>
-                                    <div onClick={() => handleSort('gender')}>Gender {sort.field === 'gender' && (sort.order === 'asc' ? ' ▲' : ' ▼')}</div>
-                                    <div><input type="text" placeholder="Search" onChange={e => handleSearch(e, 'gender')} /></div>
-                                </div>
-                            </th>
-                            <th>
-                                <div>
-                                    <div onClick={() => handleSort('email')}>Email {sort.field === 'email' && (sort.order === 'asc' ? ' ▲' : ' ▼')}</div>
-                                    <div><input type="text" placeholder="Search" onChange={e => handleSearch(e, 'email')} /></div>
-                                </div>
-                            </th>
+                            <UserHeader field='name' sort={sort} handleSort={handleSort} handleSearch={handleSearch} />
+                            <UserHeader field='gender' sort={sort} handleSort={handleSort} handleSearch={handleSearch} />
+                            <UserHeader field='email' sort={sort} handleSort={handleSort} handleSearch={handleSearch} />
                         </tr>
                     </thead>
                     <tbody>
                         {filteredAndSortedUsers.map((user, index) => (
-                            <tr key={index} className={selectedRows.includes(user) ? styles.selected : ''}>
-                                <td>
-                                    <input type="checkbox" onChange={() => handleSelect(user)} checked={selectedRows.includes(user)} />
-                                </td>
-                                <td>{user.name.first} {user.name.last}</td>
-                                <td>{user.gender}</td>
-                                <td>{user.email}</td>
-                            </tr>
+                            <UserRow key={index} user={user} handleSelect={handleSelect} selected={selectedRows.includes(user)} />
                         ))}
                     </tbody>
                 </table>
             </div>
-
         </>
     );
 };

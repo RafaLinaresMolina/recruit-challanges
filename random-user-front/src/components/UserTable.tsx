@@ -1,6 +1,7 @@
 import { useEffect, useState, ChangeEvent } from 'react';
 import { SearchUser, User } from '../interfaces/User';
 import { UserService } from '../services/UserService';
+import { CSVService } from '../services/CSVService';
 import styles from './UserTable.module.scss';
 
 
@@ -62,6 +63,7 @@ const UserTable = () => {
     const [sort, setSort] = useState<{ field: keyof User | '', order: SortOrder.ASC | SortOrder.DESC }>({ field: '', order: SortOrder.ASC });
     const [selectedRows, setSelectedRows] = useState<User[]>([]);
     const [selectAll, setSelectAll] = useState(false);
+    const csvService = new CSVService();
 
     useEffect(() => {
         UserService.getRandomUsers()
@@ -126,24 +128,30 @@ const UserTable = () => {
         filteredAndSortedUsers = filteredAndSortedUsers.sort(sortFunction);
     }
 
-    const exportToCSV = () => {
-        const toExport = selectedRows.length ? selectedRows : users;
-        const header = 'Name,Gender,Email\n';
-        const csv = toExport.map(user => `${user.name.first} ${user.name.last},${user.gender},${user.email}`).join('\n');
-        const csvWithHeader = header + csv;
-        const blob = new Blob([csvWithHeader], { type: 'text/csv;charset=utf-8;' });
+    const exportToCSV = (data: User[], headers: (keyof User)[], filename: string) => {
+        const flattenedData = data.map(user => ({
+            ...user,
+            name: `${user.name.first} ${user.name.last}`
+        }));
+        const csvContent = csvService.generateCSVContent(flattenedData, headers);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         const timestamp = Date.now();
-        link.setAttribute('download', `users_${timestamp}.csv`);
+        link.setAttribute('download', `${filename}_${timestamp}.csv`);
         link.click();
+    };
+
+    const exportSelectedToCSV = () => {
+        const headers: (keyof User)[] = ['name', 'gender', 'email'];
+        exportToCSV(selectedRows.length ? selectedRows : users, headers, 'users');
     };
 
     return (
         <>
             <div className={styles.container}>
-                <button onClick={exportToCSV}>Export to CSV</button>
+                <button onClick={exportSelectedToCSV}>Export to CSV</button>
                 <table className={styles.table}>
                     <thead>
                         <tr>

@@ -18,9 +18,9 @@ $button-disabled-background-color: #ccc;
   transition: $property $duration;
 }
 
-.container {
-  margin: 0 auto;
-  width: $container-width;
+.flexContainer {
+  display: flex;
+  justify-content: space-around; 
 }
 
 .table {

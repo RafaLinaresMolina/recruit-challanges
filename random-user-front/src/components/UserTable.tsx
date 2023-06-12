@@ -60,7 +60,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, handleSelect, selected }) => (
 const UserTable = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [searchTerms, setSearchTerms] = useState<SearchUser>({ name: '', gender: '', email: '' });
-    const [sort, setSort] = useState<{ field: keyof User | '', order: SortOrder.ASC | SortOrder.DESC }>({ field: '', order: SortOrder.ASC });
+    const [sort, setSort] = useState<{ field: keyof User | '', order: SortOrder }>({ field: '', order: SortOrder.ASC });
     const [selectedRows, setSelectedRows] = useState<User[]>([]);
     const [selectAll, setSelectAll] = useState(false);
     const csvService = new CSVService();

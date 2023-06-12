@@ -3,3 +3,9 @@ export interface User {
     gender: string,
     email: string,
   }
+
+  export interface SearchUser {
+    name: string,
+    gender: string,
+    email: string,
+  }

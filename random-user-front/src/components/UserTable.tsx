@@ -1,5 +1,5 @@
 import { useEffect, useState, ChangeEvent } from 'react';
-import { User } from '../interfaces/User';
+import { SearchUser, User } from '../interfaces/User';
 import { UserService } from '../services/UserService';
 import styles from './UserTable.module.scss';
 
@@ -58,7 +58,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, handleSelect, selected }) => (
 
 const UserTable = () => {
     const [users, setUsers] = useState<User[]>([]);
-    const [searchTerms, setSearchTerms] = useState<{ name: string, gender: string, email: string }>({ name: '', gender: '', email: '' });
+    const [searchTerms, setSearchTerms] = useState<SearchUser>({ name: '', gender: '', email: '' });
     const [sort, setSort] = useState<{ field: keyof User | '', order: SortOrder.ASC | SortOrder.DESC }>({ field: '', order: SortOrder.ASC });
     const [selectedRows, setSelectedRows] = useState<User[]>([]);
     const [selectAll, setSelectAll] = useState(false);

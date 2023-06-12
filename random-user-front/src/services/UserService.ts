@@ -12,7 +12,6 @@ export class UserService {
       return response.data.results;
 
     } catch (error) {
-      console.error(error);
       throw error;
     }
   }

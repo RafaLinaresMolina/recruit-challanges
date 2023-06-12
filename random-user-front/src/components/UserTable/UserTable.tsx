@@ -133,29 +133,27 @@ const UserTable = () => {
     }
 
     return (
-        <>
-            <DragDropContext onDragEnd={onDragEnd}>
-                <div className={styles.flexContainer}>
-                    <UserTableToDrag
-                        users={filteredAndSortedUsers}
-                        sort={sort}
-                        selectedRows={selectedRows}
-                        selectAll={selectAll}
-                        handleSearch={handleSearch}
-                        handleSort={handleSort}
-                        handleSelect={handleSelect}
-                        handleSelectAll={handleSelectAll}
-                        exportSelectedToCSV={exportSelectedToCSV}
-                    />
-                    <UserTableToDrop
-                        dragedUsers={dragedUsers}
-                        handleSelect={handleSelect}
-                        selectedRows={selectedRows}
-                        exportDragedToCSV={exportDragedToCSV}
-                    />
-                </div>
-            </DragDropContext>
-        </>
+        <DragDropContext onDragEnd={onDragEnd}>
+            <div className={styles.flexContainer}>
+                <UserTableToDrag
+                    users={filteredAndSortedUsers}
+                    sort={sort}
+                    selectedRows={selectedRows}
+                    selectAll={selectAll}
+                    handleSearch={handleSearch}
+                    handleSort={handleSort}
+                    handleSelect={handleSelect}
+                    handleSelectAll={handleSelectAll}
+                    exportSelectedToCSV={exportSelectedToCSV}
+                />
+                <UserTableToDrop
+                    dragedUsers={dragedUsers}
+                    handleSelect={handleSelect}
+                    selectedRows={selectedRows}
+                    exportDragedToCSV={exportDragedToCSV}
+                />
+            </div>
+        </DragDropContext>
     );
 };
 

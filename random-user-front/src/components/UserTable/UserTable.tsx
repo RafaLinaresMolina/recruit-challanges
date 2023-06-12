@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SearchUser, User } from '../../types/User';
 import { UserService } from '../../services/UserService';
 import { CSVService } from '../../services/CSVService';
-import { DragDropContext, DropResult, Droppable } from 'react-beautiful-dnd';
+import { DragDropContext, DropResult } from 'react-beautiful-dnd';
 import styles from './UserTable.module.scss';
 import { SortOrder } from '../../types/ShortOrder';
 import UserTableToDrop from './UserTableToDrop/UserTableToDrop';
@@ -138,7 +138,6 @@ const UserTable = () => {
                 <div className={styles.flexContainer}>
                     <UserTableToDrag
                         users={filteredAndSortedUsers}
-                        searchTerms={searchTerms}
                         sort={sort}
                         selectedRows={selectedRows}
                         selectAll={selectAll}

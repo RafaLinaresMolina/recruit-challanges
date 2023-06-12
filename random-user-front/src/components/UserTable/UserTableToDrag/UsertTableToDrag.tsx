@@ -1,13 +1,12 @@
 import { Droppable } from 'react-beautiful-dnd';
 import styles from './../../UserTable/UserTable.module.scss';
-import { SearchUser, User } from '../../../types/User';
+import { User } from '../../../types/User';
 import { SortOrder } from '../../../types/ShortOrder';
 import { UserHeader } from '../../UserHeader/UserHeader';
 import DraggableUserRow from '../../Rows/DraggableUserRow/DraggableUserRow';
 
 interface UserTableToDragProps {
     users: User[];
-    searchTerms: SearchUser;
     sort: { field: keyof User | '', order: SortOrder };
     selectedRows: User[];
     selectAll: boolean;
@@ -20,7 +19,6 @@ interface UserTableToDragProps {
 
 export const UserTableToDrag: React.FC<UserTableToDragProps> = ({
     users,
-    searchTerms,
     sort,
     selectedRows,
     selectAll,

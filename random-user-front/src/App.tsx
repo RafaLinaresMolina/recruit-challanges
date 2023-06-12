@@ -1,5 +1,5 @@
 import './App.css';
-import UserTable from './components/UserTable';
+import UserTable from './components/UserTable/UserTable';
 
 function App() {
   return (

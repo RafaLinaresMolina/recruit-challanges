@@ -1,120 +1,12 @@
 const moment = require('moment')
 const fs = require('fs');
 const constants = require('./constants');
-
-
-class CalendarNotFound extends Error {
-	constructor(message) {
-		super(message);
-		this.name = 'CalendarNotFound';
-	}
-}
-
-class InvalidDuration extends Error {
-	constructor(message) {
-		super(message);
-		this.name = 'InvalidDuration';
-	}
-}
-
-class InvalidDate extends Error {
-	constructor(message) {
-		super(message);
-		this.name = 'InvalidDate';
-	}
-}
-
-class TimeSlot {
-	constructor(start, end) {
-		this.start = start;
-		this.end = end;
-	}
-}
-
-class TimeSlots {
-	constructor(slots) {
-		this._slots = slots;
-	}
-
-	addSlot(date, start, end) {
-		if (!this._slots[date]) {
-			this._slots[date] = [];
-		}
-		this._slots[date].push(new TimeSlot(start, end));
-	}
-
-	isSlotAlreadyListed(date, start, end) {
-		const slots = this._slots[date] || [];
-		return slots.some(slot => slot.start === start && slot.end === end);
-	}
-
-	getTimeSlotByDate(date) {
-		if (!moment(date, constants.DATE_FORMAT, true).isValid()) {
-			throw new Error(constants.ERROR_MSG_INVALID_DATE_FORMAT);
-		}
-		return this._slots[date] || [];
-	}
-
-	get slots() {
-		return this._slots;
-	}
-
-	set slots(slots) {
-		this._slots = slots;
-	}
-
-}
-
-class DaySlots extends TimeSlots { }
-
-class Sessions extends TimeSlots { }
-
-class TimeCalculationService {
-	static getSlotTimes(date, slot) {
-		const start = moment(`${date} ${slot.start}`).valueOf();
-		const end = moment(`${date} ${slot.end}`).valueOf();
-		return { start, end };
-	}
-
-	static getMomentHour(dateISO, hour) {
-		return moment(dateISO + ' ' + hour);
-	}
-
-	static addMinutes(hour, minutes) {
-		return moment(hour).add(minutes, 'minutes').format('HH:mm');
-	}
-
-	static canEventFitInTimeSlot(eventEndHour, timeSlotEnd) {
-		const eventEndUtc = moment.utc(eventEndHour, 'HH:mm');
-		const timeSlotEndUtc = moment.utc(timeSlotEnd, 'HH:mm');
-
-		const eventEndTimestamp = eventEndUtc.valueOf();
-		const timeSlotEndTimestamp = timeSlotEndUtc.valueOf();
-
-		if (eventEndTimestamp > timeSlotEndTimestamp)
-			return null;
-
-		return true;
-	}
-}
-
-class OverlapCheckService {
-	static isOverlapping(sessionStart, sessionEnd, start, end) {
-		return sessionStart > start && sessionEnd < end;
-	}
-
-	static isSessionAtStart(sessionStart, sessionEnd, start, end) {
-		return sessionStart === start && sessionEnd < end;
-	}
-
-	static isSessionAtEnd(sessionStart, sessionEnd, start, end) {
-		return sessionStart > start && sessionEnd === end;
-	}
-
-	static isSessionAtSameTime(sessionStart, sessionEnd, start, end) {
-		return sessionStart === start && sessionEnd === end;
-	}
-}
+const TimeCalculationService = require('./src/services/TimeCalculationService');
+const OverlapCheckService = require('./src/services/OverlapCheckService');
+const { DaySlots, Sessions } = require('./src/interfaces/TimeSlots');
+const InvalidDate = require('./src/errors/InvalidDate');
+const InvalidDuration = require('./src/errors/InvalidDuration');
+const CalendarNotFound = require('./src/errors/CalendarNotFound');
 
 class Calendar {
 

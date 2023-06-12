@@ -47,11 +47,8 @@ interface UserRowProps {
     selected: boolean;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, handleSelect, selected }) => (
-    <tr className={selected ? styles.selected : ''}>
-        <td>
-            <input type="checkbox" onChange={() => handleSelect(user)} checked={selected} />
-        </td>
+const UserRow: React.FC<UserRowProps> = ({user}) => (
+    <tr>
         <td>{user.name.first} {user.name.last}</td>
         <td>{user.gender}</td>
         <td>{user.email}</td>
